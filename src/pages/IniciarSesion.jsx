@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login } from '../services/authService';
+import { GoogleLogin } from '@react-oauth/google';
+import { login, loginConGoogle } from '../services/authService';
 import { mensajeError } from '../api/axios';
 
 export const IniciarSesion = () => {
@@ -36,7 +37,6 @@ export const IniciarSesion = () => {
   const validarFormulario = () => {
     let nuevosErrores = {};
 
-    // Validar correo
     const correoRegex = /^[\w-\.]+@(duoc\.cl|profesor\.duoc\.cl|gmail\.com)$/i;
     if (!formData.correo.trim()) {
       nuevosErrores.correo = 'El correo es obligatorio.';
@@ -44,7 +44,6 @@ export const IniciarSesion = () => {
       nuevosErrores.correo = 'Solo se permiten correos @duoc.cl, @profesor.duoc.cl o @gmail.com.';
     }
 
-    // Validar contraseña (4 a 10 caracteres)
     if (!formData.password) {
       nuevosErrores.password = 'La contraseña es obligatoria.';
     } else if (formData.password.length < 4 || formData.password.length > 10) {
@@ -64,16 +63,27 @@ export const IniciarSesion = () => {
     }
 
     try {
-      // El backend verifica la contraseña y devuelve un JWT + datos del usuario
       const usuario = await login(formData.correo.trim(), formData.password.trim());
       mostrarToast('exito', `¡Bienvenido ${usuario.nombre}!`);
 
-      // Redireccionar según el rol (Administrador -> /admin, Cliente -> /)
       setTimeout(() => {
         navigate(usuario.rol === 'Administrador' ? '/admin' : '/');
       }, 1500);
     } catch (error) {
       mostrarToast('error', mensajeError(error, 'Correo o contraseña incorrectos.'));
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const usuario = await loginConGoogle(credentialResponse.credential);
+      mostrarToast('exito', `¡Bienvenido ${usuario.nombre}!`);
+
+      setTimeout(() => {
+        navigate(usuario.rol === 'Administrador' ? '/admin' : '/');
+      }, 1500);
+    } catch (error) {
+      mostrarToast('error', mensajeError(error, 'No se pudo iniciar sesión con Google.'));
     }
   };
 
@@ -161,6 +171,23 @@ export const IniciarSesion = () => {
                     Iniciar sesión
                   </button>
                 </form>
+
+                {/* Separador y botón de Google */}
+                <div className="d-flex align-items-center my-4">
+                  <hr className="flex-grow-1 border-secondary" />
+                  <span className="px-3 text-light opacity-50 small">o continúa con</span>
+                  <hr className="flex-grow-1 border-secondary" />
+                </div>
+
+                <div className="d-flex justify-content-center">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => mostrarToast('error', 'No se pudo conectar con Google.')}
+                    theme="filled_black"
+                    shape="rectangular"
+                    text="continue_with"
+                  />
+                </div>
 
                 <div className="text-center mt-4">
                   <small className="text-light opacity-75">
