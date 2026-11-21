@@ -2,7 +2,7 @@ import axios from 'axios';
 import { leerToken, leerRefreshToken, actualizarTokens, limpiarSesion } from '../services/sesion';
 
 // La URL del backend se configura en frontend/.env (VITE_API_URL)
-const rawURL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+const rawURL = import.meta.env.VITE_API_URL || 'https://musicmania-backend-8mk8.onrender.com/api/v1';
 const baseURL = rawURL.trim().replace(/\/+$/, '');
 
 const api = axios.create({ baseURL });
