@@ -7,6 +7,8 @@ export const Navbar = ({ totalItemsCarrito = 0 }) => {
 
   // 1. SESIÓN DESDE EL CONTEXTO DE AUTENTICACIÓN
   const { usuario: usuarioSesion, esAdmin, logout } = useAuth();
+  const esVendedor = usuarioSesion?.rol === 'Vendedor';
+  const puedeAccederPanel = esAdmin || esVendedor;
 
   // 2. FUNCIÓN PARA CERRAR SESIÓN
   const handleCerrarSesion = () => {
@@ -85,15 +87,15 @@ export const Navbar = ({ totalItemsCarrito = 0 }) => {
 
             <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 ms-lg-auto">
               
-              {/* BOTÓN PARA REGRESAR AL DASHBOARD (SOLO SE MUESTRA SI ES ADMIN) */}
-              {esAdmin && (
+              {/* BOTÓN PARA REGRESAR AL DASHBOARD (ADMINISTRADOR O VENDEDOR) */}
+              {puedeAccederPanel && (
                 <Link
                   to="/admin"
                   className="btn btn-danger btn-sm fw-bold text-uppercase d-flex align-items-center justify-content-center gap-1 shadow"
-                  title="Volver al Panel de Administración"
+                  title="Volver al Panel de Gestión"
                 >
                   <i className="bi bi-speedometer2"></i>
-                  <span>Panel Admin</span>
+                  <span>{esVendedor ? 'Panel Vendedor' : 'Panel Admin'}</span>
                 </Link>
               )}
 
@@ -118,10 +120,10 @@ export const Navbar = ({ totalItemsCarrito = 0 }) => {
                         <i className="bi bi-bag-check me-1"></i> Mis compras
                       </Link>
                     </li>
-                    {esAdmin && (
+                    {puedeAccederPanel && (
                       <li>
                         <Link className="dropdown-item text-danger fw-bold" to="/admin">
-                          <i className="bi bi-gear me-1"></i> Ir al Admin
+                          <i className="bi bi-gear me-1"></i> {esVendedor ? 'Ir al Panel Vendedor' : 'Ir al Admin'}
                         </Link>
                       </li>
                     )}

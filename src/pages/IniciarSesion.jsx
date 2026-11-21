@@ -68,9 +68,10 @@ export const IniciarSesion = () => {
       const usuario = await login(formData.correo.trim(), formData.password.trim());
       mostrarToast('exito', `¡Bienvenido ${usuario.nombre}!`);
 
-      // Redireccionar según el rol (Administrador -> /admin, Cliente -> /)
+      // Redireccionar según el rol (Administrador y Vendedor -> /admin, Cliente -> /)
+      const vaAlPanel = usuario.rol === 'Administrador' || usuario.rol === 'Vendedor';
       setTimeout(() => {
-        navigate(usuario.rol === 'Administrador' ? '/admin' : '/');
+        navigate(vaAlPanel ? '/admin' : '/');
       }, 1500);
     } catch (error) {
       mostrarToast('error', mensajeError(error, 'Correo o contraseña incorrectos.'));

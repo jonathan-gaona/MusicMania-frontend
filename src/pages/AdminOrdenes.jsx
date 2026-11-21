@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as ordenesService from '../services/ordenesService';
 import { mensajeError } from '../api/axios';
 
-export const AdminOrdenes = () => {
+export const AdminOrdenes = ({ soloLectura = false }) => {
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('Todos');
@@ -24,13 +24,14 @@ export const AdminOrdenes = () => {
   };
 
   const handleAbrirCambioEstado = (orden) => {
+    if (soloLectura) return;
     setModalEstado(orden);
     setNuevoEstado(orden.estado);
   };
 
   const handleGuardarNuevoEstado = async (e) => {
     e.preventDefault();
-    if (!modalEstado || !nuevoEstado) return;
+    if (soloLectura || !modalEstado || !nuevoEstado) return;
 
     try {
       await ordenesService.cambiarEstado(modalEstado.id, nuevoEstado);
@@ -42,6 +43,7 @@ export const AdminOrdenes = () => {
   };
 
   const handleEliminarOrden = async (idOrden) => {
+    if (soloLectura) return;
     if (window.confirm(`¿Estás seguro de cancelar/eliminar la orden ${idOrden}?`)) {
       try {
         await ordenesService.eliminar(idOrden);
@@ -89,7 +91,11 @@ export const AdminOrdenes = () => {
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-3 border-bottom border-secondary gap-3">
         <div>
           <h2 className="display-6 fw-bold text-uppercase mb-1">Gestión de Órdenes</h2>
-          <p className="text-secondary mb-0">Seguimiento de ventas y actualización de estados vinculados a los clientes.</p>
+          <p className="text-secondary mb-0">
+            {soloLectura
+              ? 'Visualización de ventas y detalle de boletas registradas.'
+              : 'Seguimiento de ventas y actualización de estados vinculados a los clientes.'}
+          </p>
         </div>
       </div>
 
@@ -209,20 +215,24 @@ export const AdminOrdenes = () => {
                         >
                           <i className="bi bi-eye"></i>
                         </button>
-                        <button
-                          onClick={() => handleAbrirCambioEstado(o)}
-                          className="btn btn-sm btn-outline-warning fw-bold"
-                          title="Cambiar estado"
-                        >
-                          <i className="bi bi-arrow-repeat"></i>
-                        </button>
-                        <button
-                          onClick={() => handleEliminarOrden(o.id)}
-                          className="btn btn-sm btn-outline-danger"
-                          title="Eliminar orden"
-                        >
-                          <i className="bi bi-trash"></i>
-                        </button>
+                        {!soloLectura && (
+                          <>
+                            <button
+                              onClick={() => handleAbrirCambioEstado(o)}
+                              className="btn btn-sm btn-outline-warning fw-bold"
+                              title="Cambiar estado"
+                            >
+                              <i className="bi bi-arrow-repeat"></i>
+                            </button>
+                            <button
+                              onClick={() => handleEliminarOrden(o.id)}
+                              className="btn btn-sm btn-outline-danger"
+                              title="Eliminar orden"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -239,7 +249,7 @@ export const AdminOrdenes = () => {
         </div>
       </div>
 
-      {/* MODAL DETALLE */}
+      {/* MODAL DETALLE (Disponible para Administrador y Vendedor) */}
       {modalDetalle && (
         <div className="modal d-block bg-black bg-opacity-75" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered modal-lg">
@@ -306,8 +316,8 @@ export const AdminOrdenes = () => {
         </div>
       )}
 
-      {/* MODAL CAMBIO DE ESTADO */}
-      {modalEstado && (
+      {/* MODAL CAMBIO DE ESTADO (Solo Administrador) */}
+      {!soloLectura && modalEstado && (
         <div className="modal d-block bg-black bg-opacity-75" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content bg-dark text-light border border-secondary shadow-lg">

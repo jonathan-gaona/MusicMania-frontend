@@ -29,7 +29,7 @@ import { PagoExitoso } from './pages/PagoExitoso';
 import { PagoError } from './pages/PagoError';
 import { MisCompras } from './pages/MisCompras';
 
-// Vista de Administración
+// Vista de Administración y Ventas
 import { AdminDashboard } from './pages/AdminDashboard';
 
 function App() {
@@ -89,11 +89,11 @@ function App() {
           <Route path="/blog/:id" element={<DetalleBlog />} />
           <Route path="/iniciar-sesion" element={<IniciarSesion />} />
 
-          {/* Vista de Administración: solo rol Administrador */}
+          {/* Vista de Gestión: Administrador (total) y Vendedor (solo órdenes y productos) */}
           <Route
             path="/admin"
             element={
-              <ProtectedRoute roles={['Administrador']}>
+              <ProtectedRoute roles={['Administrador', 'Vendedor']}>
                 <AdminDashboard />
               </ProtectedRoute>
             }
