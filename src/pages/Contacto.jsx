@@ -1,4 +1,11 @@
 import React, { useState } from 'react';
+import emailjs from '@emailjs/browser';
+
+const MOTIVOS_LABEL = {
+  consulta: 'Consulta General',
+  pedido: 'Estado de mi pedido',
+  sugerencia: 'Sugerencia',
+};
 
 export const Contacto = () => {
   // Estado local para los campos del formulario
@@ -9,9 +16,10 @@ export const Contacto = () => {
     mensaje: '',
   });
 
-  // Estado para alertas y errores
+  // Estado para alertas, errores y carga
   const [error, setError] = useState('');
   const [exito, setExito] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   // Manejar el cambio de valores en los inputs
   const handleChange = (e) => {
@@ -22,8 +30,8 @@ export const Contacto = () => {
     }));
   };
 
-  // Validación y envío del formulario
-  const handleSubmit = (e) => {
+  // Validación y envío real del correo con EmailJS
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setExito(false);
@@ -38,19 +46,40 @@ export const Contacto = () => {
 
     // Validación de dominio de correo (@gmail.com o @duoc.cl o @profesor.duoc.cl)
     const emailRegex = /^[\w-\.]+@(duoc\.cl|profesor\.duoc\.cl|gmail\.com)$/i;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(email.trim())) {
       setError('El correo debe pertenecer al dominio @gmail.com o @duoc.cl o @profesor.duoc.cl');
       return;
     }
 
-    // Si todo es válido
-    setExito(true);
-    setFormData({
-      nombre: '',
-      email: '',
-      asunto: '',
-      mensaje: '',
-    });
+    setEnviando(true);
+    try {
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        {
+          to_email: email.trim(),
+          nombre: nombre.trim(),
+          motivo: MOTIVOS_LABEL[asunto] || asunto,
+          mensaje: mensaje.trim(),
+        },
+        {
+          publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
+        }
+      );
+
+      setExito(true);
+      setFormData({
+        nombre: '',
+        email: '',
+        asunto: '',
+        mensaje: '',
+      });
+    } catch (err) {
+      console.error('Error al enviar correo:', err);
+      setError('No se pudo enviar el correo. Verifica la configuración e inténtalo nuevamente.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -124,7 +153,7 @@ export const Contacto = () => {
 
               {exito && (
                 <div className="alert alert-success mb-3" role="alert">
-                  ¡Mensaje enviado con éxito! Nos pondremos en contacto contigo a la brevedad.
+                  ¡Mensaje enviado con éxito! Revisa tu bandeja de entrada (o spam) para ver la confirmación.
                 </div>
               )}
 
@@ -214,8 +243,10 @@ export const Contacto = () => {
               <button
                 type="submit"
                 className="btn btn-danger w-100 py-3 fw-bold fs-5 shadow-sm"
+                disabled={enviando}
               >
-                <i className="bi bi-send-fill me-2"></i>Enviar Mensaje
+                <i className="bi bi-send-fill me-2"></i>
+                {enviando ? 'Enviando...' : 'Enviar Mensaje'}
               </button>
             </form>
           </div>
