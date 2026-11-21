@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as productosService from '../services/productosService';
 import { mensajeError } from '../api/axios';
 
-export const AdminProductos = () => {
+export const AdminProductos = ({ soloLectura = false }) => {
   // Productos desde la API
   const [productos, setProductos] = useState([]);
 
@@ -30,7 +30,7 @@ export const AdminProductos = () => {
   // Guardar nuevo producto
   const handleAgregar = async (e) => {
     e.preventDefault();
-    if (!nuevoProd.titulo || !nuevoProd.precio) return;
+    if (soloLectura || !nuevoProd.titulo || !nuevoProd.precio) return;
 
     try {
       await productosService.crear({
@@ -50,6 +50,7 @@ export const AdminProductos = () => {
 
   // Eliminar producto
   const handleEliminar = async (id) => {
+    if (soloLectura) return;
     try {
       await productosService.eliminar(id);
       await cargarProductos();
@@ -64,71 +65,77 @@ export const AdminProductos = () => {
       <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
         <div>
           <h2 className="display-6 fw-bold text-uppercase mb-1">Módulo de Productos</h2>
-          <p className="text-secondary mb-0">Gestión de inventario de álbumes, vinilos y equipos de audio.</p>
+          <p className="text-secondary mb-0">
+            {soloLectura
+              ? 'Visualización de inventario y catálogo de productos.'
+              : 'Gestión de inventario de álbumes, vinilos y equipos de audio.'}
+          </p>
         </div>
         <span className="badge bg-danger fs-6 px-3 py-2">{productos.length} Productos</span>
       </div>
 
-      {/* Formulario de Alta de Producto */}
-      <form onSubmit={handleAgregar} className="bg-secondary bg-opacity-10 p-4 rounded-3 border border-secondary mb-4 row g-3 align-items-end shadow-sm">
-        <h5 className="fw-bold text-uppercase text-danger mb-2">
-          <i className="bi bi-plus-circle me-2"></i>Agregar Nuevo Producto
-        </h5>
-        
-        <div className="col-md-3">
-          <label className="form-label text-secondary small fw-bold">Título / Nombre</label>
-          <input 
-            type="text" 
-            className="form-control bg-dark text-light border-secondary"
-            value={nuevoProd.titulo}
-            onChange={(e) => setNuevoProd({ ...nuevoProd, titulo: e.target.value })}
-            placeholder="Ej: Amplificador Marshall"
-            required 
-          />
-        </div>
-        
-        <div className="col-md-3">
-          <label className="form-label text-secondary small fw-bold">Artista / Marca</label>
-          <input 
-            type="text" 
-            className="form-control bg-dark text-light border-secondary"
-            value={nuevoProd.artista}
-            onChange={(e) => setNuevoProd({ ...nuevoProd, artista: e.target.value })}
-            placeholder="Ej: Marshall" 
-          />
-        </div>
+      {/* Formulario de Alta de Producto (Solo visible para Administrador) */}
+      {!soloLectura && (
+        <form onSubmit={handleAgregar} className="bg-secondary bg-opacity-10 p-4 rounded-3 border border-secondary mb-4 row g-3 align-items-end shadow-sm">
+          <h5 className="fw-bold text-uppercase text-danger mb-2">
+            <i className="bi bi-plus-circle me-2"></i>Agregar Nuevo Producto
+          </h5>
+          
+          <div className="col-md-3">
+            <label className="form-label text-secondary small fw-bold">Título / Nombre</label>
+            <input 
+              type="text" 
+              className="form-control bg-dark text-light border-secondary"
+              value={nuevoProd.titulo}
+              onChange={(e) => setNuevoProd({ ...nuevoProd, titulo: e.target.value })}
+              placeholder="Ej: Amplificador Marshall"
+              required 
+            />
+          </div>
+          
+          <div className="col-md-3">
+            <label className="form-label text-secondary small fw-bold">Artista / Marca</label>
+            <input 
+              type="text" 
+              className="form-control bg-dark text-light border-secondary"
+              value={nuevoProd.artista}
+              onChange={(e) => setNuevoProd({ ...nuevoProd, artista: e.target.value })}
+              placeholder="Ej: Marshall" 
+            />
+          </div>
 
-        <div className="col-md-2">
-          <label className="form-label text-secondary small fw-bold">Categoría</label>
-          <select
-            className="form-select bg-dark text-light border-secondary"
-            value={nuevoProd.categoria}
-            onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })}
-          >
-            <option value="vinilos">Vinilos</option>
-            <option value="equipos">Equipos</option>
-            <option value="accesorios">Accesorios</option>
-          </select>
-        </div>
+          <div className="col-md-2">
+            <label className="form-label text-secondary small fw-bold">Categoría</label>
+            <select
+              className="form-select bg-dark text-light border-secondary"
+              value={nuevoProd.categoria}
+              onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })}
+            >
+              <option value="vinilos">Vinilos</option>
+              <option value="equipos">Equipos</option>
+              <option value="accesorios">Accesorios</option>
+            </select>
+          </div>
 
-        <div className="col-md-2">
-          <label className="form-label text-secondary small fw-bold">Precio ($CLP)</label>
-          <input 
-            type="number" 
-            className="form-control bg-dark text-light border-secondary"
-            value={nuevoProd.precio}
-            onChange={(e) => setNuevoProd({ ...nuevoProd, precio: e.target.value })}
-            placeholder="19990"
-            required 
-          />
-        </div>
+          <div className="col-md-2">
+            <label className="form-label text-secondary small fw-bold">Precio ($CLP)</label>
+            <input 
+              type="number" 
+              className="form-control bg-dark text-light border-secondary"
+              value={nuevoProd.precio}
+              onChange={(e) => setNuevoProd({ ...nuevoProd, precio: e.target.value })}
+              placeholder="19990"
+              required 
+            />
+          </div>
 
-        <div className="col-md-2">
-          <button type="submit" className="btn btn-danger w-100 fw-bold py-2">
-            Guardar
-          </button>
-        </div>
-      </form>
+          <div className="col-md-2">
+            <button type="submit" className="btn btn-danger w-100 fw-bold py-2">
+              Guardar
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Tabla de Productos Registrados */}
       <div className="table-responsive bg-secondary bg-opacity-10 rounded-3 border border-secondary p-3 shadow">
@@ -138,8 +145,9 @@ export const AdminProductos = () => {
               <th>Título / Producto</th>
               <th>Artista / Marca</th>
               <th>Categoría</th>
+              <th>Stock</th>
               <th>Precio</th>
-              <th className="text-end">Acción</th>
+              {!soloLectura && <th className="text-end">Acción</th>}
             </tr>
           </thead>
           <tbody>
@@ -154,12 +162,17 @@ export const AdminProductos = () => {
                     {prod.categoria || 'vinilos'}
                   </span>
                 </td>
-                <td className="text-success fw-bold">${Number(prod.precio).toLocaleString('es-CL')}</td>
-                <td className="text-end">
-                  <button onClick={() => handleEliminar(prod.id)} className="btn btn-sm btn-outline-danger">
-                    <i className="bi bi-trash"></i> Eliminar
-                  </button>
+                <td>
+                  <span className="badge bg-dark border border-secondary">{prod.stock ?? 0} unid.</span>
                 </td>
+                <td className="text-success fw-bold">${Number(prod.precio).toLocaleString('es-CL')}</td>
+                {!soloLectura && (
+                  <td className="text-end">
+                    <button onClick={() => handleEliminar(prod.id)} className="btn btn-sm btn-outline-danger">
+                      <i className="bi bi-trash"></i> Eliminar
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

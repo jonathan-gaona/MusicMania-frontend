@@ -26,7 +26,10 @@ export const AdminDashboard = () => {
   });
   const [totalVentas, setTotalVentas] = useState(0);
 
-  // VERIFICACIÓN DE PERMISOS
+  const esAdmin = usuarioSesion?.rol === 'Administrador';
+  const esVendedor = usuarioSesion?.rol === 'Vendedor';
+
+  // VERIFICACIÓN DE PERMISOS (Administrador o Vendedor)
   useEffect(() => {
     const sesionGuardada = localStorage.getItem('usuarioSesion');
 
@@ -37,8 +40,12 @@ export const AdminDashboard = () => {
 
     try {
       const sesion = JSON.parse(sesionGuardada);
-      if (sesion && sesion.rol === 'Administrador') {
+      if (sesion && (sesion.rol === 'Administrador' || sesion.rol === 'Vendedor')) {
         setUsuarioSesion(sesion);
+        // El vendedor solo tiene acceso a Órdenes y Productos; inicia en Órdenes
+        if (sesion.rol === 'Vendedor') {
+          setTabActiva('ordenes');
+        }
         setCargando(false);
       } else {
         navigate('/iniciar-sesion', { replace: true });
@@ -49,10 +56,14 @@ export const AdminDashboard = () => {
     }
   }, [navigate]);
 
-  // ACTUALIZAR MÉTRICAS GENERALES DESDE LA API
+  // ACTUALIZAR MÉTRICAS GENERALES DESDE LA API (Solo Administrador)
   const actualizarMetricas = async () => {
+    if (!esAdmin) return;
     try {
-      const [usuarios, ordenes] = await Promise.all([usuariosService.listar(), ordenesService.listarAdmin()]);
+      const [usuarios, ordenes] = await Promise.all([
+        usuariosService.listar(),
+        ordenesService.listarAdmin()
+      ]);
 
       setMetricasUsuarios({
         total: usuarios.length,
@@ -61,47 +72,49 @@ export const AdminDashboard = () => {
       });
       setTotalVentas(ordenes.reduce((acc, curr) => acc + (curr.total || 0), 0));
     } catch {
-      // Si el token venció, volver a iniciar sesión
       if (!localStorage.getItem('token')) navigate('/iniciar-sesion', { replace: true });
     }
   };
 
   useEffect(() => {
-    if (!cargando) {
+    if (!cargando && esAdmin) {
       actualizarMetricas();
     }
-  }, [cargando, tabActiva]);
+  }, [cargando, tabActiva, esAdmin]);
 
   if (cargando) {
     return (
       <div className="bg-dark text-light min-vh-100 d-flex flex-column justify-content-center align-items-center">
         <div className="spinner-border text-danger mb-3" role="status" style={{ width: '3rem', height: '3rem' }}></div>
-        <p className="text-secondary fw-bold text-uppercase fs-6">Verificando permisos de administrador...</p>
+        <p className="text-secondary fw-bold text-uppercase fs-6">Verificando permisos...</p>
       </div>
     );
   }
 
   return (
     <div className="bg-dark text-light min-vh-100 d-flex flex-column">
-      {/* NAVBAR DE ADMINISTRADOR */}
+      {/* NAVBAR DE GESTIÓN */}
       <AdminNavbar usuarioSesion={usuarioSesion} />
 
       <div className="d-flex flex-grow-1">
-        {/* MENÚ LATERAL INTERACTIVO */}
+        {/* MENÚ LATERAL INTERACTIVO FILTRADO POR ROL */}
         <aside
           className="bg-black bg-opacity-50 border-end border-secondary p-3 d-none d-md-flex flex-column justify-content-between"
           style={{ width: '250px' }}
         >
           <nav className="nav nav-pills flex-column gap-2">
-            <button
-              onClick={() => setTabActiva('dashboard')}
-              className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
-                tabActiva === 'dashboard' ? 'bg-danger text-white' : 'text-light opacity-75'
-              }`}
-            >
-              <i className="bi bi-speedometer2"></i> Dashboard
-            </button>
+            {esAdmin && (
+              <button
+                onClick={() => setTabActiva('dashboard')}
+                className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
+                  tabActiva === 'dashboard' ? 'bg-danger text-white' : 'text-light opacity-75'
+                }`}
+              >
+                <i className="bi bi-speedometer2"></i> Dashboard
+              </button>
+            )}
 
+            {/* Visible para Administrador y Vendedor */}
             <button
               onClick={() => setTabActiva('ordenes')}
               className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
@@ -111,6 +124,7 @@ export const AdminDashboard = () => {
               <i className="bi bi-receipt"></i> Órdenes
             </button>
 
+            {/* Visible para Administrador y Vendedor */}
             <button
               onClick={() => setTabActiva('productos')}
               className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
@@ -120,49 +134,54 @@ export const AdminDashboard = () => {
               <i className="bi bi-disc"></i> Productos
             </button>
 
-            <button
-              onClick={() => setTabActiva('categorias')}
-              className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
-                tabActiva === 'categorias' ? 'bg-danger text-white' : 'text-light opacity-75'
-              }`}
-            >
-              <i className="bi bi-tags"></i> Categorías
-            </button>
+            {/* Exclusivos de Administrador (ocultos para Vendedor) */}
+            {esAdmin && (
+              <>
+                <button
+                  onClick={() => setTabActiva('categorias')}
+                  className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
+                    tabActiva === 'categorias' ? 'bg-danger text-white' : 'text-light opacity-75'
+                  }`}
+                >
+                  <i className="bi bi-tags"></i> Categorías
+                </button>
 
-            <button
-              onClick={() => setTabActiva('usuarios')}
-              className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
-                tabActiva === 'usuarios' ? 'bg-danger text-white' : 'text-light opacity-75'
-              }`}
-            >
-              <i className="bi bi-people"></i> Usuarios
-            </button>
+                <button
+                  onClick={() => setTabActiva('usuarios')}
+                  className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
+                    tabActiva === 'usuarios' ? 'bg-danger text-white' : 'text-light opacity-75'
+                  }`}
+                >
+                  <i className="bi bi-people"></i> Usuarios
+                </button>
 
-            <button
-              onClick={() => setTabActiva('blogs')}
-              className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
-                tabActiva === 'blogs' ? 'bg-danger text-white' : 'text-light opacity-75'
-              }`}
-            >
-              <i className="bi bi-journal-text"></i> Blogs
-            </button>
+                <button
+                  onClick={() => setTabActiva('blogs')}
+                  className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
+                    tabActiva === 'blogs' ? 'bg-danger text-white' : 'text-light opacity-75'
+                  }`}
+                >
+                  <i className="bi bi-journal-text"></i> Blogs
+                </button>
 
-            <button
-              onClick={() => setTabActiva('reportes')}
-              className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
-                tabActiva === 'reportes' ? 'bg-danger text-white' : 'text-light opacity-75'
-              }`}
-            >
-              <i className="bi bi-bar-chart-line"></i> Reportes
-            </button>
+                <button
+                  onClick={() => setTabActiva('reportes')}
+                  className={`nav-link text-start d-flex align-items-center gap-2 py-2 px-3 fw-semibold rounded ${
+                    tabActiva === 'reportes' ? 'bg-danger text-white' : 'text-light opacity-75'
+                  }`}
+                >
+                  <i className="bi bi-bar-chart-line"></i> Reportes
+                </button>
+              </>
+            )}
           </nav>
         </aside>
 
         {/* CONTENIDO PRINCIPAL */}
         <main className="flex-grow-1 p-4 p-md-5 overflow-auto">
           
-          {/* VISTA 1: DASHBOARD PRINCIPAL */}
-          {tabActiva === 'dashboard' && (
+          {/* VISTA 1: DASHBOARD PRINCIPAL (Solo Administrador) */}
+          {esAdmin && tabActiva === 'dashboard' && (
             <div className="animate__animated animate__fadeIn">
               <header className="mb-4 pb-3 border-bottom border-secondary">
                 <h2 className="display-6 fw-bold text-uppercase mb-1">Dashboard</h2>
@@ -240,14 +259,14 @@ export const AdminDashboard = () => {
           )}
 
           {/* VISTAS DE COMPONENTES */}
-          {tabActiva === 'usuarios' && <AdminUsuarios />}
-          {tabActiva === 'ordenes' && <AdminOrdenes />}
-          {tabActiva === 'blogs' && <AdminBlogs />}
-          {tabActiva === 'productos' && <AdminProductos />}
-          {tabActiva === 'categorias' && <AdminCategorias />}
+          {tabActiva === 'ordenes' && <AdminOrdenes soloLectura={esVendedor} />}
+          {tabActiva === 'productos' && <AdminProductos soloLectura={esVendedor} />}
+          {esAdmin && tabActiva === 'usuarios' && <AdminUsuarios />}
+          {esAdmin && tabActiva === 'blogs' && <AdminBlogs />}
+          {esAdmin && tabActiva === 'categorias' && <AdminCategorias />}
 
-          {/* MENSAJE TEMPORAL SOLO PARA MÓDULOS PENDIENTES */}
-          {tabActiva === 'reportes' && (
+          {/* MENSAJE TEMPORAL SOLO PARA MÓDULOS PENDIENTES (Solo Administrador) */}
+          {esAdmin && tabActiva === 'reportes' && (
             <div className="text-center py-5 bg-secondary bg-opacity-10 rounded border border-secondary">
               <i className="bi bi-bar-chart-line fs-1 text-warning mb-3 d-block"></i>
               <h4 className="fw-bold text-uppercase">Módulo de Reportes</h4>

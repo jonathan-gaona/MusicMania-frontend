@@ -54,6 +54,13 @@ export const IniciarSesion = () => {
     return Object.keys(nuevosErrores).length === 0;
   };
 
+  const redirigirPorRol = (rol) => {
+    const vaAlPanel = rol === 'Administrador' || rol === 'Vendedor';
+    setTimeout(() => {
+      navigate(vaAlPanel ? '/admin' : '/');
+    }, 1500);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -65,10 +72,7 @@ export const IniciarSesion = () => {
     try {
       const usuario = await login(formData.correo.trim(), formData.password.trim());
       mostrarToast('exito', `¡Bienvenido ${usuario.nombre}!`);
-
-      setTimeout(() => {
-        navigate(usuario.rol === 'Administrador' ? '/admin' : '/');
-      }, 1500);
+      redirigirPorRol(usuario.rol);
     } catch (error) {
       mostrarToast('error', mensajeError(error, 'Correo o contraseña incorrectos.'));
     }
@@ -78,10 +82,7 @@ export const IniciarSesion = () => {
     try {
       const usuario = await loginConGoogle(credentialResponse.credential);
       mostrarToast('exito', `¡Bienvenido ${usuario.nombre}!`);
-
-      setTimeout(() => {
-        navigate(usuario.rol === 'Administrador' ? '/admin' : '/');
-      }, 1500);
+      redirigirPorRol(usuario.rol);
     } catch (error) {
       mostrarToast('error', mensajeError(error, 'No se pudo iniciar sesión con Google.'));
     }
