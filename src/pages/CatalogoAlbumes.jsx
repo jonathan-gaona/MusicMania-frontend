@@ -5,15 +5,16 @@ import { AlbumCard } from '../components/AlbumCard';
 
 export const CatalogoAlbumes = ({ agregarAlCarrito }) => {
   const [toast, setToast] = useState('');
-
-  // Catálogo desde la API (categoría vinilos)
   const [listaProductos, setListaProductos] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     productosService
       .listar('vinilos')
-      .then(setListaProductos)
+      .then((data) => {
+        const productos = Array.isArray(data) ? data : data?.content || [];
+        setListaProductos(productos);
+      })
       .catch(() => setError('No se pudo cargar el catálogo. Intenta nuevamente.'));
   }, []);
 
@@ -34,6 +35,8 @@ export const CatalogoAlbumes = ({ agregarAlCarrito }) => {
       setToast('');
     }, 3000);
   };
+
+  const productosSeguros = Array.isArray(listaProductos) ? listaProductos : [];
 
   return (
     <div className="bg-dark text-white min-vh-100 py-5 position-relative">
@@ -65,9 +68,9 @@ export const CatalogoAlbumes = ({ agregarAlCarrito }) => {
 
         {error && <div className="alert alert-danger text-center">{error}</div>}
 
-      {/* Grid de Productos */}
+        {/* Grid de Productos */}
         <div className="row g-4 mb-5">
-          {listaProductos.map((album) => (
+          {productosSeguros.map((album) => (
             <AlbumCard
               key={album.id}
               album={album}
