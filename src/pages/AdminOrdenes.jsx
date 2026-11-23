@@ -6,6 +6,7 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('Todos');
+  const [cargando, setCargando] = useState(true);
 
   const [modalDetalle, setModalDetalle] = useState(null);
   const [modalEstado, setModalEstado] = useState(null);
@@ -16,10 +17,13 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
   }, []);
 
   const cargarOrdenes = async () => {
+    setCargando(true);
     try {
       setOrdenes(await ordenesService.listarAdmin());
     } catch (error) {
       alert(mensajeError(error, 'No se pudieron cargar las órdenes.'));
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -81,7 +85,10 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
     }
   };
 
-  const totalVentas = ordenes.reduce((acc, curr) => acc + (curr.total || 0), 0);
+  // Las órdenes canceladas no cuentan como venta
+  const totalVentas = ordenes
+    .filter((o) => o.estado !== 'Cancelado')
+    .reduce((acc, curr) => acc + (curr.total || 0), 0);
   const cantPendientes = ordenes.filter((o) => o.estado === 'Pendiente').length;
   const cantEnviados = ordenes.filter((o) => o.estado === 'Enviado' || o.estado === 'En preparación').length;
   const cantEntregados = ordenes.filter((o) => o.estado === 'Entregado').length;
@@ -97,6 +104,15 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
               : 'Seguimiento de ventas y actualización de estados vinculados a los clientes.'}
           </p>
         </div>
+        <button
+          onClick={cargarOrdenes}
+          disabled={cargando}
+          className="btn btn-outline-light fw-bold d-flex align-items-center gap-2 py-2 px-3"
+          title="Volver a cargar desde la base de datos"
+        >
+          <i className="bi bi-arrow-clockwise fs-5"></i>
+          <span className="d-none d-lg-inline">Actualizar</span>
+        </button>
       </div>
 
       {/* KPIS */}
@@ -190,7 +206,14 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
               </tr>
             </thead>
             <tbody>
-              {ordenesFiltradas.length > 0 ? (
+              {cargando && ordenes.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-secondary">
+                    <span className="spinner-border spinner-border-sm text-danger me-2" role="status"></span>
+                    Cargando órdenes...
+                  </td>
+                </tr>
+              ) : ordenesFiltradas.length > 0 ? (
                 ordenesFiltradas.map((o) => (
                   <tr key={o.id}>
                     <td>

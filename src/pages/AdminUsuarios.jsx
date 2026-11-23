@@ -9,6 +9,7 @@ export const AdminUsuarios = () => {
   const [ordenesTodas, setOrdenesTodas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState('Todos');
+  const [cargando, setCargando] = useState(true);
 
   // MODALES
   const [modalNuevo, setModalNuevo] = useState(false);
@@ -31,12 +32,15 @@ export const AdminUsuarios = () => {
   }, []);
 
   const cargarUsuarios = async () => {
+    setCargando(true);
     try {
       const [listaUsuarios, listaOrdenes] = await Promise.all([usuariosService.listar(), ordenesService.listarAdmin()]);
       setUsuarios(listaUsuarios);
       setOrdenesTodas(listaOrdenes);
     } catch (error) {
       alert(mensajeError(error, 'No se pudieron cargar los usuarios.'));
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -136,13 +140,44 @@ export const AdminUsuarios = () => {
     return coincideBusqueda && coincideRol;
   });
 
-  // HISTORIAL DE COMPRAS DEL CLIENTE (órdenes cargadas desde la API)
-  const obtenerHistorialCliente = (correoCliente) => {
-    const todasLasOrdenes = ordenesTodas;
-    return todasLasOrdenes.filter(
-      (orden) => orden.correo && orden.correo.toLowerCase() === correoCliente.toLowerCase()
+  // COMPRAS DE UN USUARIO (órdenes de la base de datos): las ligadas a su cuenta
+  // o las hechas con su mismo correo como invitado
+  const comprasDe = (usuario) =>
+    ordenesTodas.filter(
+      (orden) =>
+        (orden.idUsuario != null && orden.idUsuario === usuario.id) ||
+        (orden.correo && orden.correo.toLowerCase() === usuario.correo.toLowerCase())
     );
+
+  // Las órdenes canceladas no cuentan como gasto
+  const totalGastado = (compras) =>
+    compras.filter((c) => c.estado !== 'Cancelado').reduce((acc, c) => acc + (c.total || 0), 0);
+
+  const claseBadgeRol = (rol) => {
+    if (rol === 'Administrador') return 'bg-danger text-white';
+    if (rol === 'Vendedor') return 'bg-warning text-dark';
+    return 'bg-info text-dark';
   };
+
+  const claseBadgeEstado = (estado) => {
+    switch (estado) {
+      case 'Pendiente':
+        return 'bg-warning text-dark';
+      case 'En preparación':
+        return 'bg-info text-dark';
+      case 'Enviado':
+        return 'bg-primary';
+      case 'Entregado':
+        return 'bg-success';
+      case 'Cancelado':
+        return 'bg-danger';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  const totalClientes = usuarios.filter((u) => u.rol === 'Cliente').length;
+  const totalAdmins = usuarios.filter((u) => u.rol === 'Administrador').length;
 
   return (
     <div className="animate__animated animate__fadeIn">
@@ -153,13 +188,55 @@ export const AdminUsuarios = () => {
           <p className="text-secondary mb-0">Administración de cuentas, asignación de roles e historial de clientes.</p>
         </div>
 
-        <button
-          onClick={handleAbrirNuevo}
-          className="btn btn-danger fw-bold text-uppercase d-flex align-items-center gap-2 py-2 px-3 shadow"
-        >
-          <i className="bi bi-person-plus-fill fs-5"></i>
-          <span>Nuevo Usuario</span>
-        </button>
+        <div className="d-flex gap-2">
+          <button
+            onClick={cargarUsuarios}
+            disabled={cargando}
+            className="btn btn-outline-light fw-bold d-flex align-items-center gap-2 py-2 px-3"
+            title="Volver a cargar desde la base de datos"
+          >
+            <i className="bi bi-arrow-clockwise fs-5"></i>
+            <span className="d-none d-lg-inline">Actualizar</span>
+          </button>
+          <button
+            onClick={handleAbrirNuevo}
+            className="btn btn-danger fw-bold text-uppercase d-flex align-items-center gap-2 py-2 px-3 shadow"
+          >
+            <i className="bi bi-person-plus-fill fs-5"></i>
+            <span>Nuevo Usuario</span>
+          </button>
+        </div>
+      </div>
+
+      {/* RESUMEN (datos reales de la base de datos) */}
+      <div className="row g-3 mb-4">
+        <div className="col-12 col-sm-4">
+          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
+            <div>
+              <small className="text-secondary text-uppercase fw-bold">Usuarios</small>
+              <h4 className="fw-bold mb-0">{usuarios.length}</h4>
+            </div>
+            <i className="bi bi-people fs-2 text-warning"></i>
+          </div>
+        </div>
+        <div className="col-12 col-sm-4">
+          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
+            <div>
+              <small className="text-secondary text-uppercase fw-bold">Clientes</small>
+              <h4 className="fw-bold text-info mb-0">{totalClientes}</h4>
+            </div>
+            <i className="bi bi-person fs-2 text-info"></i>
+          </div>
+        </div>
+        <div className="col-12 col-sm-4">
+          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
+            <div>
+              <small className="text-secondary text-uppercase fw-bold">Administradores</small>
+              <h4 className="fw-bold text-danger mb-0">{totalAdmins}</h4>
+            </div>
+            <i className="bi bi-shield-lock fs-2 text-danger"></i>
+          </div>
+        </div>
       </div>
 
       {/* BÚSQUEDA Y FILTROS */}
@@ -202,13 +279,21 @@ export const AdminUsuarios = () => {
                 <th>RUN / RUT</th>
                 <th>Correo Electrónico</th>
                 <th>Rol</th>
+                <th>Compras</th>
                 <th className="text-end">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {usuariosFiltrados.length > 0 ? (
-                usuariosFiltrados.map((u, i) => (
-                  <tr key={i}>
+              {cargando && usuarios.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-secondary">
+                    <span className="spinner-border spinner-border-sm text-danger me-2" role="status"></span>
+                    Cargando usuarios...
+                  </td>
+                </tr>
+              ) : usuariosFiltrados.length > 0 ? (
+                usuariosFiltrados.map((u) => (
+                  <tr key={u.id}>
                     <td>
                       <div className="d-flex align-items-center gap-3">
                         <div
@@ -219,7 +304,7 @@ export const AdminUsuarios = () => {
                         </div>
                         <div>
                           <span className="fw-bold d-block text-light">{u.nombre}</span>
-                          <small className="text-muted fs-7">ID: USR-{i + 101}</small>
+                          <small className="text-muted fs-7">ID: USR-{u.id}</small>
                         </div>
                       </div>
                     </td>
@@ -228,13 +313,25 @@ export const AdminUsuarios = () => {
                     <td className="text-info">{u.correo}</td>
 
                     <td>
-                      <span
-                        className={`badge ${
-                          u.rol === 'Administrador' ? 'bg-danger text-white' : 'bg-info text-dark'
-                        } text-uppercase px-2 py-1 fw-bold`}
-                      >
+                      <span className={`badge ${claseBadgeRol(u.rol)} text-uppercase px-2 py-1 fw-bold`}>
                         {u.rol}
                       </span>
+                    </td>
+
+                    <td>
+                      {(() => {
+                        const compras = comprasDe(u);
+                        return compras.length > 0 ? (
+                          <>
+                            <span className="fw-bold d-block text-light">
+                              {compras.length} {compras.length === 1 ? 'orden' : 'órdenes'}
+                            </span>
+                            <small className="text-success">${totalGastado(compras).toLocaleString('es-CL')}</small>
+                          </>
+                        ) : (
+                          <span className="text-muted small">Sin compras</span>
+                        );
+                      })()}
                     </td>
 
                     <td className="text-end">
@@ -276,7 +373,7 @@ export const AdminUsuarios = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="text-center py-4 text-muted">
+                  <td colSpan="6" className="text-center py-4 text-muted">
                     No hay usuarios registrados que coincidan con la búsqueda.
                   </td>
                 </tr>
@@ -488,7 +585,7 @@ export const AdminUsuarios = () => {
         </div>
       )}
 
-      {/* MODAL HISTORIAL DE COMPRAS (CONECTADO A LOCALSTORAGE) */}
+      {/* MODAL HISTORIAL DE COMPRAS (órdenes reales de la base de datos) */}
       {modalHistorial && (
         <div className="modal d-block bg-black bg-opacity-75" tabIndex="-1">
           <div className="modal-dialog modal-dialog-centered modal-lg">
@@ -510,12 +607,12 @@ export const AdminUsuarios = () => {
                     <h6 className="fw-bold mb-0 text-light">{modalHistorial.nombre}</h6>
                     <small className="text-info">{modalHistorial.correo}</small>
                   </div>
-                  <span className="badge bg-info text-dark text-uppercase">{modalHistorial.rol}</span>
+                  <span className={`badge ${claseBadgeRol(modalHistorial.rol)} text-uppercase`}>{modalHistorial.rol}</span>
                 </div>
 
                 <h6 className="fw-bold text-uppercase mb-3 text-secondary">Órdenes Registradas</h6>
 
-                {obtenerHistorialCliente(modalHistorial.correo).length > 0 ? (
+                {comprasDe(modalHistorial).length > 0 ? (
                   <div className="table-responsive">
                     <table className="table table-dark table-striped align-middle mb-0">
                       <thead>
@@ -528,7 +625,7 @@ export const AdminUsuarios = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {obtenerHistorialCliente(modalHistorial.correo).map((compra) => (
+                        {comprasDe(modalHistorial).map((compra) => (
                           <tr key={compra.id}>
                             <td className="fw-bold text-info">{compra.id}</td>
                             <td className="small">{compra.fecha}</td>
@@ -539,7 +636,7 @@ export const AdminUsuarios = () => {
                             </td>
                             <td className="fw-bold text-success">${compra.total.toLocaleString('es-CL')}</td>
                             <td>
-                              <span className="badge bg-success">{compra.estado}</span>
+                              <span className={`badge ${claseBadgeEstado(compra.estado)}`}>{compra.estado}</span>
                             </td>
                           </tr>
                         ))}

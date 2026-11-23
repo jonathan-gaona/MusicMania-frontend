@@ -1,0 +1,906 @@
+diff --git a/src/pages/AdminDashboard.jsx b/src/pages/AdminDashboard.jsx
+index b2a7766..bb70651 100644
+--- a/src/pages/AdminDashboard.jsx
++++ b/src/pages/AdminDashboard.jsx
+@@ -6,9 +6,12 @@ import { AdminOrdenes } from './AdminOrdenes';
+ import { AdminBlogs } from './AdminBlogs';
+ import { AdminProductos } from './AdminProductos';
+ import { AdminCategorias } from './AdminCategorias';
+-import * as usuariosService from '../services/usuariosService';
+-import * as ordenesService from '../services/ordenesService';
++import { AdminReportes } from './AdminReportes';
++import * as adminService from '../services/adminService';
+ import { cerrarSesion } from '../services/authService';
++import { mensajeError } from '../api/axios';
++
++const clp = (n) => `$${(n || 0).toLocaleString('es-CL')}`;
+ 
+ export const AdminDashboard = () => {
+   const navigate = useNavigate();
+@@ -18,13 +21,10 @@ export const AdminDashboard = () => {
+   // ESTADO DE NAVEGACIÓN
+   const [tabActiva, setTabActiva] = useState('dashboard');
+ 
+-  // ESTADOS DE MÉTRICAS (DESDE LA API)
+-  const [metricasUsuarios, setMetricasUsuarios] = useState({
+-    total: 0,
+-    clientes: 0,
+-    admins: 0
+-  });
+-  const [totalVentas, setTotalVentas] = useState(0);
++  // MÉTRICAS REALES (GET /admin/resumen, calculadas por el backend desde la base de datos)
++  const [resumen, setResumen] = useState(null);
++  const [cargandoResumen, setCargandoResumen] = useState(false);
++  const [errorResumen, setErrorResumen] = useState('');
+ 
+   const esAdmin = usuarioSesion?.rol === 'Administrador';
+   const esVendedor = usuarioSesion?.rol === 'Vendedor';
+@@ -56,29 +56,28 @@ export const AdminDashboard = () => {
+     }
+   }, [navigate]);
+ 
+-  // ACTUALIZAR MÉTRICAS GENERALES DESDE LA API (Solo Administrador)
+-  const actualizarMetricas = async () => {
++  // CARGAR MÉTRICAS DESDE LA API (Solo Administrador)
++  const cargarResumen = async () => {
+     if (!esAdmin) return;
++    setCargandoResumen(true);
++    setErrorResumen('');
+     try {
+-      const [usuarios, ordenes] = await Promise.all([
+-        usuariosService.listar(),
+-        ordenesService.listarAdmin()
+-      ]);
+-
+-      setMetricasUsuarios({
+-        total: usuarios.length,
+-        clientes: usuarios.filter((u) => u.rol === 'Cliente').length,
+-        admins: usuarios.filter((u) => u.rol === 'Administrador').length,
+-      });
+-      setTotalVentas(ordenes.reduce((acc, curr) => acc + (curr.total || 0), 0));
+-    } catch {
+-      if (!localStorage.getItem('token')) navigate('/iniciar-sesion', { replace: true });
++      setResumen(await adminService.resumen());
++    } catch (error) {
++      if (!localStorage.getItem('token')) {
++        navigate('/iniciar-sesion', { replace: true });
++        return;
++      }
++      setErrorResumen(mensajeError(error, 'No se pudieron cargar las métricas.'));
++    } finally {
++      setCargandoResumen(false);
+     }
+   };
+ 
++  // Se recarga al entrar al Dashboard para reflejar altas, compras y cambios de estado recientes
+   useEffect(() => {
+-    if (!cargando && esAdmin) {
+-      actualizarMetricas();
++    if (!cargando && esAdmin && tabActiva === 'dashboard') {
++      cargarResumen();
+     }
+   }, [cargando, tabActiva, esAdmin]);
+ 
+@@ -188,45 +187,157 @@ export const AdminDashboard = () => {
+                 <p className="text-secondary mb-0">Resumen general de las operaciones de MusicMania.</p>
+               </header>
+ 
+-              {/* TARJETAS KPIS / RESÚMENES GENERALES */}
+-              <section className="row g-4 mb-5">
+-                <div className="col-12 col-md-4">
+-                  <div className="bg-primary bg-opacity-20 border border-primary p-4 rounded-3 shadow d-flex align-items-center justify-content-between">
+-                    <div>
+-                      <span className="text-uppercase fs-7 fw-bold text-white">Compras Totales</span>
+-                      <h3 className="display-6 fw-bold my-1">
+-                        ${totalVentas > 0 ? totalVentas.toLocaleString('es-CL') : '1,234,990'}
+-                      </h3>
+-                      <small className="text-light opacity-75">Hasta el día de hoy</small>
+-                    </div>
+-                    <i className="bi bi-cart-check fs-1 text-primary"></i>
+-                  </div>
++              {/* ESTADO DE CARGA DE LAS MÉTRICAS */}
++              {errorResumen && (
++                <div className="alert alert-danger d-flex justify-content-between align-items-center">
++                  <span>{errorResumen}</span>
++                  <button className="btn btn-sm btn-outline-light" onClick={cargarResumen}>
++                    Reintentar
++                  </button>
+                 </div>
++              )}
+ 
+-                <div className="col-12 col-md-4">
+-                  <div className="bg-success bg-opacity-20 border border-success p-4 rounded-3 shadow d-flex align-items-center justify-content-between">
+-                    <div>
+-                      <span className="text-uppercase fs-7 fw-bold text-white">Productos Totales</span>
+-                      <h3 className="display-6 fw-bold my-1">400</h3>
+-                      <small className="text-light opacity-75">Inventario del mes: <strong>700</strong></small>
+-                    </div>
+-                    <i className="bi bi-box-seam fs-1 text-success"></i>
+-                  </div>
++              {!resumen && cargandoResumen && (
++                <div className="text-center py-5 text-secondary">
++                  <div className="spinner-border text-danger mb-3" role="status"></div>
++                  <p className="mb-0">Cargando métricas...</p>
+                 </div>
++              )}
+ 
+-                <div className="col-12 col-md-4">
+-                  <div className="bg-warning bg-opacity-20 border border-warning p-4 rounded-3 shadow d-flex align-items-center justify-content-between">
+-                    <div>
+-                      <span className="text-uppercase fs-7 fw-bold text-white">Usuarios Registrados</span>
+-                      <h3 className="display-6 fw-bold my-1">{metricasUsuarios.total}</h3>
+-                      <small className="text-light opacity-75">
+-                        <strong>{metricasUsuarios.clientes}</strong> Clientes | <strong>{metricasUsuarios.admins}</strong> Admins
+-                      </small>
++              {resumen && (
++                <>
++                  {/* TARJETAS KPIS (datos reales de la base de datos) */}
++                  <section className="row g-4 mb-4">
++                    <div className="col-12 col-md-6 col-xl-3">
++                      <div className="bg-primary bg-opacity-20 border border-primary p-4 rounded-3 shadow d-flex align-items-center justify-content-between h-100">
++                        <div>
++                          <span className="text-uppercase fs-7 fw-bold text-white">Ventas Totales</span>
++                          <h3 className="display-6 fw-bold my-1">{clp(resumen.ventasTotales)}</h3>
++                          <small className="text-light opacity-75">
++                            Ticket promedio: <strong>{clp(resumen.ticketPromedio)}</strong>
++                          </small>
++                        </div>
++                        <i className="bi bi-cart-check fs-1 text-primary"></i>
++                      </div>
+                     </div>
+-                    <i className="bi bi-people fs-1 text-warning"></i>
+-                  </div>
+-                </div>
+-              </section>
++
++                    <div className="col-12 col-md-6 col-xl-3">
++                      <div className="bg-info bg-opacity-20 border border-info p-4 rounded-3 shadow d-flex align-items-center justify-content-between h-100">
++                        <div>
++                          <span className="text-uppercase fs-7 fw-bold text-white">Órdenes</span>
++                          <h3 className="display-6 fw-bold my-1">{resumen.totalOrdenes}</h3>
++                          <small className="text-light opacity-75">
++                            <strong>{resumen.ordenesPorEstado?.Pendiente || 0}</strong> pendientes
++                          </small>
++                        </div>
++                        <i className="bi bi-receipt fs-1 text-info"></i>
++                      </div>
++                    </div>
++
++                    <div className="col-12 col-md-6 col-xl-3">
++                      <div className="bg-success bg-opacity-20 border border-success p-4 rounded-3 shadow d-flex align-items-center justify-content-between h-100">
++                        <div>
++                          <span className="text-uppercase fs-7 fw-bold text-white">Productos</span>
++                          <h3 className="display-6 fw-bold my-1">{resumen.totalProductos}</h3>
++                          <small className="text-light opacity-75">
++                            <strong>{resumen.unidadesEnStock}</strong> unidades en stock
++                          </small>
++                        </div>
++                        <i className="bi bi-box-seam fs-1 text-success"></i>
++                      </div>
++                    </div>
++
++                    <div className="col-12 col-md-6 col-xl-3">
++                      <div className="bg-warning bg-opacity-20 border border-warning p-4 rounded-3 shadow d-flex align-items-center justify-content-between h-100">
++                        <div>
++                          <span className="text-uppercase fs-7 fw-bold text-white">Usuarios Registrados</span>
++                          <h3 className="display-6 fw-bold my-1">{resumen.totalUsuarios}</h3>
++                          <small className="text-light opacity-75">
++                            <strong>{resumen.clientes}</strong> Clientes | <strong>{resumen.administradores}</strong> Admins
++                            {resumen.vendedores > 0 && (
++                              <> | <strong>{resumen.vendedores}</strong> Vendedores</>
++                            )}
++                          </small>
++                        </div>
++                        <i className="bi bi-people fs-1 text-warning"></i>
++                      </div>
++                    </div>
++                  </section>
++
++                  {/* ÚLTIMAS ÓRDENES Y STOCK BAJO */}
++                  <section className="row g-4 mb-5">
++                    <div className="col-12 col-xl-8">
++                      <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-3 h-100">
++                        <div className="d-flex justify-content-between align-items-center mb-3">
++                          <h5 className="fw-bold text-uppercase mb-0">Últimas órdenes</h5>
++                          <button className="btn btn-sm btn-outline-light" onClick={() => setTabActiva('ordenes')}>
++                            Ver todas
++                          </button>
++                        </div>
++                        {resumen.ultimasOrdenes?.length > 0 ? (
++                          <div className="table-responsive">
++                            <table className="table table-dark table-hover align-middle mb-0">
++                              <thead>
++                                <tr className="text-secondary small">
++                                  <th>Boleta</th>
++                                  <th>Cliente</th>
++                                  <th>Total</th>
++                                  <th>Estado</th>
++                                </tr>
++                              </thead>
++                              <tbody>
++                                {resumen.ultimasOrdenes.map((o) => (
++                                  <tr key={o.id}>
++                                    <td>
++                                      <span className="fw-bold text-info d-block">{o.id}</span>
++                                      <small className="text-muted">{o.fecha}</small>
++                                    </td>
++                                    <td>{o.cliente}</td>
++                                    <td className="fw-bold text-success">{clp(o.total)}</td>
++                                    <td>
++                                      <span className="badge bg-secondary text-uppercase">{o.estado}</span>
++                                    </td>
++                                  </tr>
++                                ))}
++                              </tbody>
++                            </table>
++                          </div>
++                        ) : (
++                          <p className="text-muted text-center py-4 mb-0">Aún no hay órdenes registradas.</p>
++                        )}
++                      </div>
++                    </div>
++
++                    <div className="col-12 col-xl-4">
++                      <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-3 h-100">
++                        <div className="d-flex justify-content-between align-items-center mb-3">
++                          <h5 className="fw-bold text-uppercase mb-0">Stock bajo</h5>
++                          <span className={`badge ${resumen.productosStockBajo > 0 ? 'bg-danger' : 'bg-success'}`}>
++                            {resumen.productosStockBajo}
++                          </span>
++                        </div>
++                        {resumen.stockBajo?.length > 0 ? (
++                          <ul className="list-group list-group-flush">
++                            {resumen.stockBajo.slice(0, 6).map((p) => (
++                              <li
++                                key={p.id}
++                                className="list-group-item bg-transparent text-light border-secondary d-flex justify-content-between align-items-center px-0"
++                              >
++                                <span className="text-truncate me-2">{p.titulo}</span>
++                                <span className={`badge ${p.stock === 0 ? 'bg-danger' : 'bg-warning text-dark'}`}>
++                                  {p.stock === 0 ? 'Agotado' : `${p.stock} un.`}
++                                </span>
++                              </li>
++                            ))}
++                          </ul>
++                        ) : (
++                          <p className="text-muted text-center py-4 mb-0">Todo el inventario tiene stock suficiente.</p>
++                        )}
++                      </div>
++                    </div>
++                  </section>
++                </>
++              )}
+ 
+               {/* ACCESOS RÁPIDOS A MÓDULOS */}
+               <section>
+@@ -237,7 +348,7 @@ export const AdminDashboard = () => {
+                     { id: 'ordenes', title: 'Órdenes', desc: 'Gestión y seguimiento de órdenes.', icon: 'bi-receipt', color: 'text-info' },
+                     { id: 'productos', title: 'Productos', desc: 'Administrar inventario y catálogo.', icon: 'bi-disc', color: 'text-success' },
+                     { id: 'categorias', title: 'Categorías', desc: 'Organizar productos por géneros.', icon: 'bi-tags', color: 'text-warning' },
+-                    { id: 'usuarios', title: 'Usuarios', desc: `Gestión de ${metricasUsuarios.total} cuentas activas.`, icon: 'bi-people', color: 'text-primary' },
++                    { id: 'usuarios', title: 'Usuarios', desc: resumen ? `Gestión de ${resumen.totalUsuarios} cuentas registradas.` : 'Gestión de cuentas y roles.', icon: 'bi-people', color: 'text-primary' },
+                     { id: 'blogs', title: 'Blogs', desc: 'Administración de artículos y noticias.', icon: 'bi-journal-text', color: 'text-info' },
+                     { id: 'reportes', title: 'Reportes', desc: 'Generación de informes detallados.', icon: 'bi-bar-chart-line', color: 'text-danger' }
+                   ].map((mod) => (
+@@ -265,14 +376,7 @@ export const AdminDashboard = () => {
+           {esAdmin && tabActiva === 'blogs' && <AdminBlogs />}
+           {esAdmin && tabActiva === 'categorias' && <AdminCategorias />}
+ 
+-          {/* MENSAJE TEMPORAL SOLO PARA MÓDULOS PENDIENTES (Solo Administrador) */}
+-          {esAdmin && tabActiva === 'reportes' && (
+-            <div className="text-center py-5 bg-secondary bg-opacity-10 rounded border border-secondary">
+-              <i className="bi bi-bar-chart-line fs-1 text-warning mb-3 d-block"></i>
+-              <h4 className="fw-bold text-uppercase">Módulo de Reportes</h4>
+-              <p className="text-secondary">Sección lista para ser conectada.</p>
+-            </div>
+-          )}
++          {esAdmin && tabActiva === 'reportes' && <AdminReportes />}
+ 
+         </main>
+       </div>
+diff --git a/src/pages/AdminOrdenes.jsx b/src/pages/AdminOrdenes.jsx
+index b309cec..893899e 100644
+--- a/src/pages/AdminOrdenes.jsx
++++ b/src/pages/AdminOrdenes.jsx
+@@ -6,6 +6,7 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
+   const [ordenes, setOrdenes] = useState([]);
+   const [busqueda, setBusqueda] = useState('');
+   const [filtroEstado, setFiltroEstado] = useState('Todos');
++  const [cargando, setCargando] = useState(true);
+ 
+   const [modalDetalle, setModalDetalle] = useState(null);
+   const [modalEstado, setModalEstado] = useState(null);
+@@ -16,10 +17,13 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
+   }, []);
+ 
+   const cargarOrdenes = async () => {
++    setCargando(true);
+     try {
+       setOrdenes(await ordenesService.listarAdmin());
+     } catch (error) {
+       alert(mensajeError(error, 'No se pudieron cargar las órdenes.'));
++    } finally {
++      setCargando(false);
+     }
+   };
+ 
+@@ -81,7 +85,10 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
+     }
+   };
+ 
+-  const totalVentas = ordenes.reduce((acc, curr) => acc + (curr.total || 0), 0);
++  // Las órdenes canceladas no cuentan como venta
++  const totalVentas = ordenes
++    .filter((o) => o.estado !== 'Cancelado')
++    .reduce((acc, curr) => acc + (curr.total || 0), 0);
+   const cantPendientes = ordenes.filter((o) => o.estado === 'Pendiente').length;
+   const cantEnviados = ordenes.filter((o) => o.estado === 'Enviado' || o.estado === 'En preparación').length;
+   const cantEntregados = ordenes.filter((o) => o.estado === 'Entregado').length;
+@@ -97,6 +104,15 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
+               : 'Seguimiento de ventas y actualización de estados vinculados a los clientes.'}
+           </p>
+         </div>
++        <button
++          onClick={cargarOrdenes}
++          disabled={cargando}
++          className="btn btn-outline-light fw-bold d-flex align-items-center gap-2 py-2 px-3"
++          title="Volver a cargar desde la base de datos"
++        >
++          <i className="bi bi-arrow-clockwise fs-5"></i>
++          <span className="d-none d-lg-inline">Actualizar</span>
++        </button>
+       </div>
+ 
+       {/* KPIS */}
+@@ -190,7 +206,14 @@ export const AdminOrdenes = ({ soloLectura = false }) => {
+               </tr>
+             </thead>
+             <tbody>
+-              {ordenesFiltradas.length > 0 ? (
++              {cargando && ordenes.length === 0 ? (
++                <tr>
++                  <td colSpan="6" className="text-center py-4 text-secondary">
++                    <span className="spinner-border spinner-border-sm text-danger me-2" role="status"></span>
++                    Cargando órdenes...
++                  </td>
++                </tr>
++              ) : ordenesFiltradas.length > 0 ? (
+                 ordenesFiltradas.map((o) => (
+                   <tr key={o.id}>
+                     <td>
+diff --git a/src/pages/AdminReportes.jsx b/src/pages/AdminReportes.jsx
+new file mode 100644
+index 0000000..0475ce6
+--- /dev/null
++++ b/src/pages/AdminReportes.jsx
+@@ -0,0 +1,260 @@
++import React, { useState, useEffect } from 'react';
++import * as adminService from '../services/adminService';
++import * as ordenesService from '../services/ordenesService';
++import { mensajeError } from '../api/axios';
++
++const clp = (n) => `$${(n || 0).toLocaleString('es-CL')}`;
++
++const COLOR_ESTADO = {
++  Pendiente: 'bg-warning',
++  'En preparación': 'bg-info',
++  Enviado: 'bg-primary',
++  Entregado: 'bg-success',
++  Cancelado: 'bg-danger',
++};
++
++// Una celda CSV segura: comillas dobles escapadas y protección contra fórmulas de Excel
++const celdaCsv = (valor) => {
++  let texto = String(valor ?? '');
++  if (/^[=+\-@]/.test(texto)) texto = `'${texto}`;
++  return `"${texto.replace(/"/g, '""')}"`;
++};
++
++export const AdminReportes = () => {
++  const [resumen, setResumen] = useState(null);
++  const [cargando, setCargando] = useState(true);
++  const [error, setError] = useState('');
++  const [exportando, setExportando] = useState(false);
++
++  const cargar = async () => {
++    setCargando(true);
++    setError('');
++    try {
++      setResumen(await adminService.resumen());
++    } catch (e) {
++      setError(mensajeError(e, 'No se pudieron cargar los reportes.'));
++    } finally {
++      setCargando(false);
++    }
++  };
++
++  useEffect(() => {
++    cargar();
++  }, []);
++
++  // Exporta todas las órdenes de la base de datos a un CSV que abre Excel (separador ";")
++  const exportarOrdenes = async () => {
++    setExportando(true);
++    try {
++      const ordenes = await ordenesService.listarAdmin();
++      const filas = [
++        ['Boleta', 'Fecha', 'Cliente', 'Correo', 'RUT', 'Dirección', 'Método de pago', 'Estado', 'Total', 'Productos'],
++        ...ordenes.map((o) => [
++          o.id,
++          o.fecha,
++          o.cliente,
++          o.correo,
++          o.rut,
++          o.direccion,
++          o.metodoPago,
++          o.estado,
++          o.total,
++          (o.productos || []).map((p) => `${p.cantidad}x ${p.nombre}`).join(' | '),
++        ]),
++      ];
++      const csv = '﻿' + filas.map((fila) => fila.map(celdaCsv).join(';')).join('\r\n');
++      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
++      const enlace = document.createElement('a');
++      enlace.href = url;
++      enlace.download = `ordenes-musicmania-${new Date().toISOString().slice(0, 10)}.csv`;
++      document.body.appendChild(enlace);
++      enlace.click();
++      enlace.remove();
++      URL.revokeObjectURL(url);
++    } catch (e) {
++      alert(mensajeError(e, 'No se pudo exportar las órdenes.'));
++    } finally {
++      setExportando(false);
++    }
++  };
++
++  const totalPorMetodo = resumen ? Object.values(resumen.ventasPorMetodoPago || {}).reduce((a, b) => a + b, 0) : 0;
++  const maxUnidades = resumen?.masVendidos?.length ? Math.max(...resumen.masVendidos.map((p) => p.unidades)) : 0;
++
++  return (
++    <div className="animate__animated animate__fadeIn">
++      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 pb-3 border-bottom border-secondary gap-3">
++        <div>
++          <h2 className="display-6 fw-bold text-uppercase mb-1">Reportes</h2>
++          <p className="text-secondary mb-0">Ventas, órdenes y productos calculados con los datos reales de la tienda.</p>
++        </div>
++        <div className="d-flex gap-2">
++          <button className="btn btn-outline-light fw-bold" onClick={cargar} disabled={cargando}>
++            <i className="bi bi-arrow-clockwise me-2"></i>Actualizar
++          </button>
++          <button className="btn btn-success fw-bold" onClick={exportarOrdenes} disabled={exportando}>
++            <i className="bi bi-file-earmark-spreadsheet me-2"></i>
++            {exportando ? 'Exportando...' : 'Exportar órdenes (CSV)'}
++          </button>
++        </div>
++      </div>
++
++      {error && (
++        <div className="alert alert-danger d-flex justify-content-between align-items-center">
++          <span>{error}</span>
++          <button className="btn btn-sm btn-outline-light" onClick={cargar}>
++            Reintentar
++          </button>
++        </div>
++      )}
++
++      {!resumen && cargando && (
++        <div className="text-center py-5 text-secondary">
++          <div className="spinner-border text-danger mb-3" role="status"></div>
++          <p className="mb-0">Cargando reportes...</p>
++        </div>
++      )}
++
++      {resumen && (
++        <div className="row g-4">
++          {/* ÓRDENES POR ESTADO */}
++          <div className="col-12 col-lg-6">
++            <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-4 h-100">
++              <h5 className="fw-bold text-uppercase mb-3">Órdenes por estado</h5>
++              {Object.entries(resumen.ordenesPorEstado || {}).map(([estado, cantidad]) => {
++                const pct = resumen.totalOrdenes ? Math.round((cantidad / resumen.totalOrdenes) * 100) : 0;
++                return (
++                  <div key={estado} className="mb-3">
++                    <div className="d-flex justify-content-between small mb-1">
++                      <span className="fw-bold">{estado}</span>
++                      <span className="text-secondary">
++                        {cantidad} ({pct}%)
++                      </span>
++                    </div>
++                    <div className="progress bg-black" style={{ height: '10px' }}>
++                      <div
++                        className={`progress-bar ${COLOR_ESTADO[estado] || 'bg-secondary'}`}
++                        role="progressbar"
++                        style={{ width: `${pct}%` }}
++                      ></div>
++                    </div>
++                  </div>
++                );
++              })}
++              <hr className="border-secondary" />
++              <div className="d-flex justify-content-between">
++                <span className="text-secondary">Ventas totales (sin canceladas)</span>
++                <strong className="text-success">{clp(resumen.ventasTotales)}</strong>
++              </div>
++              <div className="d-flex justify-content-between">
++                <span className="text-secondary">Ticket promedio</span>
++                <strong>{clp(resumen.ticketPromedio)}</strong>
++              </div>
++            </div>
++          </div>
++
++          {/* VENTAS POR MÉTODO DE PAGO */}
++          <div className="col-12 col-lg-6">
++            <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-4 h-100">
++              <h5 className="fw-bold text-uppercase mb-3">Ventas por método de pago</h5>
++              {Object.keys(resumen.ventasPorMetodoPago || {}).length > 0 ? (
++                Object.entries(resumen.ventasPorMetodoPago).map(([metodo, monto]) => {
++                  const pct = totalPorMetodo ? Math.round((monto / totalPorMetodo) * 100) : 0;
++                  return (
++                    <div key={metodo} className="mb-3">
++                      <div className="d-flex justify-content-between small mb-1">
++                        <span className="fw-bold">{metodo}</span>
++                        <span className="text-secondary">
++                          {clp(monto)} ({pct}%)
++                        </span>
++                      </div>
++                      <div className="progress bg-black" style={{ height: '10px' }}>
++                        <div className="progress-bar bg-primary" role="progressbar" style={{ width: `${pct}%` }}></div>
++                      </div>
++                    </div>
++                  );
++                })
++              ) : (
++                <p className="text-muted text-center py-4 mb-0">Todavía no hay ventas registradas.</p>
++              )}
++            </div>
++          </div>
++
++          {/* PRODUCTOS MÁS VENDIDOS */}
++          <div className="col-12 col-lg-7">
++            <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-4 h-100">
++              <h5 className="fw-bold text-uppercase mb-3">Productos más vendidos</h5>
++              {resumen.masVendidos?.length > 0 ? (
++                <div className="table-responsive">
++                  <table className="table table-dark align-middle mb-0">
++                    <thead>
++                      <tr className="text-secondary small">
++                        <th>Producto</th>
++                        <th style={{ width: '35%' }}>Unidades</th>
++                        <th className="text-end">Ingresos</th>
++                      </tr>
++                    </thead>
++                    <tbody>
++                      {resumen.masVendidos.map((p) => (
++                        <tr key={p.id || p.nombre}>
++                          <td className="fw-bold">{p.nombre}</td>
++                          <td>
++                            <div className="d-flex align-items-center gap-2">
++                              <div className="progress bg-black flex-grow-1" style={{ height: '8px' }}>
++                                <div
++                                  className="progress-bar bg-danger"
++                                  style={{ width: `${maxUnidades ? (p.unidades / maxUnidades) * 100 : 0}%` }}
++                                ></div>
++                              </div>
++                              <span className="small fw-bold">{p.unidades}</span>
++                            </div>
++                          </td>
++                          <td className="text-end text-success fw-bold">{clp(p.ingresos)}</td>
++                        </tr>
++                      ))}
++                    </tbody>
++                  </table>
++                </div>
++              ) : (
++                <p className="text-muted text-center py-4 mb-0">Todavía no hay productos vendidos.</p>
++              )}
++            </div>
++          </div>
++
++          {/* INVENTARIO */}
++          <div className="col-12 col-lg-5">
++            <div className="bg-secondary bg-opacity-10 border border-secondary rounded-3 p-4 h-100">
++              <h5 className="fw-bold text-uppercase mb-3">Inventario</h5>
++              <div className="d-flex justify-content-between mb-2">
++                <span className="text-secondary">Productos en catálogo</span>
++                <strong>{resumen.totalProductos}</strong>
++              </div>
++              <div className="d-flex justify-content-between mb-3">
++                <span className="text-secondary">Unidades en stock</span>
++                <strong>{resumen.unidadesEnStock}</strong>
++              </div>
++              <h6 className="fw-bold text-uppercase text-secondary small">Stock bajo (3 unidades o menos)</h6>
++              {resumen.stockBajo?.length > 0 ? (
++                <ul className="list-group list-group-flush">
++                  {resumen.stockBajo.map((p) => (
++                    <li
++                      key={p.id}
++                      className="list-group-item bg-transparent text-light border-secondary d-flex justify-content-between align-items-center px-0"
++                    >
++                      <span className="text-truncate me-2">{p.titulo}</span>
++                      <span className={`badge ${p.stock === 0 ? 'bg-danger' : 'bg-warning text-dark'}`}>
++                        {p.stock === 0 ? 'Agotado' : `${p.stock} un.`}
++                      </span>
++                    </li>
++                  ))}
++                </ul>
++              ) : (
++                <p className="text-muted mb-0">Todo el inventario tiene stock suficiente.</p>
++              )}
++            </div>
++          </div>
++        </div>
++      )}
++    </div>
++  );
++};
+diff --git a/src/pages/AdminUsuarios.jsx b/src/pages/AdminUsuarios.jsx
+index 4f4120e..1d1f861 100644
+--- a/src/pages/AdminUsuarios.jsx
++++ b/src/pages/AdminUsuarios.jsx
+@@ -9,6 +9,7 @@ export const AdminUsuarios = () => {
+   const [ordenesTodas, setOrdenesTodas] = useState([]);
+   const [busqueda, setBusqueda] = useState('');
+   const [filtroRol, setFiltroRol] = useState('Todos');
++  const [cargando, setCargando] = useState(true);
+ 
+   // MODALES
+   const [modalNuevo, setModalNuevo] = useState(false);
+@@ -31,12 +32,15 @@ export const AdminUsuarios = () => {
+   }, []);
+ 
+   const cargarUsuarios = async () => {
++    setCargando(true);
+     try {
+       const [listaUsuarios, listaOrdenes] = await Promise.all([usuariosService.listar(), ordenesService.listarAdmin()]);
+       setUsuarios(listaUsuarios);
+       setOrdenesTodas(listaOrdenes);
+     } catch (error) {
+       alert(mensajeError(error, 'No se pudieron cargar los usuarios.'));
++    } finally {
++      setCargando(false);
+     }
+   };
+ 
+@@ -136,14 +140,45 @@ export const AdminUsuarios = () => {
+     return coincideBusqueda && coincideRol;
+   });
+ 
+-  // HISTORIAL DE COMPRAS DEL CLIENTE (órdenes cargadas desde la API)
+-  const obtenerHistorialCliente = (correoCliente) => {
+-    const todasLasOrdenes = ordenesTodas;
+-    return todasLasOrdenes.filter(
+-      (orden) => orden.correo && orden.correo.toLowerCase() === correoCliente.toLowerCase()
++  // COMPRAS DE UN USUARIO (órdenes de la base de datos): las ligadas a su cuenta
++  // o las hechas con su mismo correo como invitado
++  const comprasDe = (usuario) =>
++    ordenesTodas.filter(
++      (orden) =>
++        (orden.idUsuario != null && orden.idUsuario === usuario.id) ||
++        (orden.correo && orden.correo.toLowerCase() === usuario.correo.toLowerCase())
+     );
++
++  // Las órdenes canceladas no cuentan como gasto
++  const totalGastado = (compras) =>
++    compras.filter((c) => c.estado !== 'Cancelado').reduce((acc, c) => acc + (c.total || 0), 0);
++
++  const claseBadgeRol = (rol) => {
++    if (rol === 'Administrador') return 'bg-danger text-white';
++    if (rol === 'Vendedor') return 'bg-warning text-dark';
++    return 'bg-info text-dark';
+   };
+ 
++  const claseBadgeEstado = (estado) => {
++    switch (estado) {
++      case 'Pendiente':
++        return 'bg-warning text-dark';
++      case 'En preparación':
++        return 'bg-info text-dark';
++      case 'Enviado':
++        return 'bg-primary';
++      case 'Entregado':
++        return 'bg-success';
++      case 'Cancelado':
++        return 'bg-danger';
++      default:
++        return 'bg-secondary';
++    }
++  };
++
++  const totalClientes = usuarios.filter((u) => u.rol === 'Cliente').length;
++  const totalAdmins = usuarios.filter((u) => u.rol === 'Administrador').length;
++
+   return (
+     <div className="animate__animated animate__fadeIn">
+       {/* CABECERA */}
+@@ -153,13 +188,55 @@ export const AdminUsuarios = () => {
+           <p className="text-secondary mb-0">Administración de cuentas, asignación de roles e historial de clientes.</p>
+         </div>
+ 
+-        <button
+-          onClick={handleAbrirNuevo}
+-          className="btn btn-danger fw-bold text-uppercase d-flex align-items-center gap-2 py-2 px-3 shadow"
+-        >
+-          <i className="bi bi-person-plus-fill fs-5"></i>
+-          <span>Nuevo Usuario</span>
+-        </button>
++        <div className="d-flex gap-2">
++          <button
++            onClick={cargarUsuarios}
++            disabled={cargando}
++            className="btn btn-outline-light fw-bold d-flex align-items-center gap-2 py-2 px-3"
++            title="Volver a cargar desde la base de datos"
++          >
++            <i className="bi bi-arrow-clockwise fs-5"></i>
++            <span className="d-none d-lg-inline">Actualizar</span>
++          </button>
++          <button
++            onClick={handleAbrirNuevo}
++            className="btn btn-danger fw-bold text-uppercase d-flex align-items-center gap-2 py-2 px-3 shadow"
++          >
++            <i className="bi bi-person-plus-fill fs-5"></i>
++            <span>Nuevo Usuario</span>
++          </button>
++        </div>
++      </div>
++
++      {/* RESUMEN (datos reales de la base de datos) */}
++      <div className="row g-3 mb-4">
++        <div className="col-12 col-sm-4">
++          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
++            <div>
++              <small className="text-secondary text-uppercase fw-bold">Usuarios</small>
++              <h4 className="fw-bold mb-0">{usuarios.length}</h4>
++            </div>
++            <i className="bi bi-people fs-2 text-warning"></i>
++          </div>
++        </div>
++        <div className="col-12 col-sm-4">
++          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
++            <div>
++              <small className="text-secondary text-uppercase fw-bold">Clientes</small>
++              <h4 className="fw-bold text-info mb-0">{totalClientes}</h4>
++            </div>
++            <i className="bi bi-person fs-2 text-info"></i>
++          </div>
++        </div>
++        <div className="col-12 col-sm-4">
++          <div className="bg-secondary bg-opacity-10 border border-secondary p-3 rounded-3 d-flex align-items-center justify-content-between">
++            <div>
++              <small className="text-secondary text-uppercase fw-bold">Administradores</small>
++              <h4 className="fw-bold text-danger mb-0">{totalAdmins}</h4>
++            </div>
++            <i className="bi bi-shield-lock fs-2 text-danger"></i>
++          </div>
++        </div>
+       </div>
+ 
+       {/* BÚSQUEDA Y FILTROS */}
+@@ -202,13 +279,21 @@ export const AdminUsuarios = () => {
+                 <th>RUN / RUT</th>
+                 <th>Correo Electrónico</th>
+                 <th>Rol</th>
++                <th>Compras</th>
+                 <th className="text-end">Acciones</th>
+               </tr>
+             </thead>
+             <tbody>
+-              {usuariosFiltrados.length > 0 ? (
+-                usuariosFiltrados.map((u, i) => (
+-                  <tr key={i}>
++              {cargando && usuarios.length === 0 ? (
++                <tr>
++                  <td colSpan="6" className="text-center py-4 text-secondary">
++                    <span className="spinner-border spinner-border-sm text-danger me-2" role="status"></span>
++                    Cargando usuarios...
++                  </td>
++                </tr>
++              ) : usuariosFiltrados.length > 0 ? (
++                usuariosFiltrados.map((u) => (
++                  <tr key={u.id}>
+                     <td>
+                       <div className="d-flex align-items-center gap-3">
+                         <div
+@@ -219,7 +304,7 @@ export const AdminUsuarios = () => {
+                         </div>
+                         <div>
+                           <span className="fw-bold d-block text-light">{u.nombre}</span>
+-                          <small className="text-muted fs-7">ID: USR-{i + 101}</small>
++                          <small className="text-muted fs-7">ID: USR-{u.id}</small>
+                         </div>
+                       </div>
+                     </td>
+@@ -228,15 +313,27 @@ export const AdminUsuarios = () => {
+                     <td className="text-info">{u.correo}</td>
+ 
+                     <td>
+-                      <span
+-                        className={`badge ${
+-                          u.rol === 'Administrador' ? 'bg-danger text-white' : 'bg-info text-dark'
+-                        } text-uppercase px-2 py-1 fw-bold`}
+-                      >
++                      <span className={`badge ${claseBadgeRol(u.rol)} text-uppercase px-2 py-1 fw-bold`}>
+                         {u.rol}
+                       </span>
+                     </td>
+ 
++                    <td>
++                      {(() => {
++                        const compras = comprasDe(u);
++                        return compras.length > 0 ? (
++                          <>
++                            <span className="fw-bold d-block text-light">
++                              {compras.length} {compras.length === 1 ? 'orden' : 'órdenes'}
++                            </span>
++                            <small className="text-success">${totalGastado(compras).toLocaleString('es-CL')}</small>
++                          </>
++                        ) : (
++                          <span className="text-muted small">Sin compras</span>
++                        );
++                      })()}
++                    </td>
++
+                     <td className="text-end">
+                       <div className="d-flex align-items-center justify-content-end gap-2">
+                         {/* EDITAR USUARIO */}
+@@ -276,7 +373,7 @@ export const AdminUsuarios = () => {
+                 ))
+               ) : (
+                 <tr>
+-                  <td colSpan="5" className="text-center py-4 text-muted">
++                  <td colSpan="6" className="text-center py-4 text-muted">
+                     No hay usuarios registrados que coincidan con la búsqueda.
+                   </td>
+                 </tr>
+@@ -488,7 +585,7 @@ export const AdminUsuarios = () => {
+         </div>
+       )}
+ 
+-      {/* MODAL HISTORIAL DE COMPRAS (CONECTADO A LOCALSTORAGE) */}
++      {/* MODAL HISTORIAL DE COMPRAS (órdenes reales de la base de datos) */}
+       {modalHistorial && (
+         <div className="modal d-block bg-black bg-opacity-75" tabIndex="-1">
+           <div className="modal-dialog modal-dialog-centered modal-lg">
+@@ -510,12 +607,12 @@ export const AdminUsuarios = () => {
+                     <h6 className="fw-bold mb-0 text-light">{modalHistorial.nombre}</h6>
+                     <small className="text-info">{modalHistorial.correo}</small>
+                   </div>
+-                  <span className="badge bg-info text-dark text-uppercase">{modalHistorial.rol}</span>
++                  <span className={`badge ${claseBadgeRol(modalHistorial.rol)} text-uppercase`}>{modalHistorial.rol}</span>
+                 </div>
+ 
+                 <h6 className="fw-bold text-uppercase mb-3 text-secondary">Órdenes Registradas</h6>
+ 
+-                {obtenerHistorialCliente(modalHistorial.correo).length > 0 ? (
++                {comprasDe(modalHistorial).length > 0 ? (
+                   <div className="table-responsive">
+                     <table className="table table-dark table-striped align-middle mb-0">
+                       <thead>
+@@ -528,7 +625,7 @@ export const AdminUsuarios = () => {
+                         </tr>
+                       </thead>
+                       <tbody>
+-                        {obtenerHistorialCliente(modalHistorial.correo).map((compra) => (
++                        {comprasDe(modalHistorial).map((compra) => (
+                           <tr key={compra.id}>
+                             <td className="fw-bold text-info">{compra.id}</td>
+                             <td className="small">{compra.fecha}</td>
+@@ -539,7 +636,7 @@ export const AdminUsuarios = () => {
+                             </td>
+                             <td className="fw-bold text-success">${compra.total.toLocaleString('es-CL')}</td>
+                             <td>
+-                              <span className="badge bg-success">{compra.estado}</span>
++                              <span className={`badge ${claseBadgeEstado(compra.estado)}`}>{compra.estado}</span>
+                             </td>
+                           </tr>
+                         ))}
+diff --git a/src/services/adminService.js b/src/services/adminService.js
+new file mode 100644
+index 0000000..37e8d2a
+--- /dev/null
++++ b/src/services/adminService.js
+@@ -0,0 +1,4 @@
++import api from '../api/axios';
++
++/** Métricas reales del negocio calculadas por el backend (solo Administrador). */
++export const resumen = async () => (await api.get('/admin/resumen')).data;
